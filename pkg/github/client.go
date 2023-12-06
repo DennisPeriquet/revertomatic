@@ -174,6 +174,44 @@ func (c *Client) Revert(prInfo *v1.PullRequest, jira, contextMsg, jobs string, r
 		return nil, err
 	}
 
+	// Template data
+	data := struct {
+		OriginalPR     int
+		OriginalAuthor string
+		JiraIssue      string
+		Context        string
+		Jobs           string
+	}{
+		OriginalAuthor: prInfo.Author,
+		JiraIssue:      jira,
+		Context:        contextMsg,
+		Jobs:           jobs,
+		OriginalPR:     prInfo.Number,
+	}
+
+	// Render template
+	tmpl, err := template.New("revertTemplate").Parse(revertTemplate)
+	if err != nil {
+		return nil, err
+	}
+
+	var renderedMsg bytes.Buffer
+	if err := tmpl.Execute(&renderedMsg, data); err != nil {
+		return nil, err
+	}
+
+	// Print and ask for confirmation
+	fmt.Println("Rendered Message:\n", renderedMsg.String())
+	fmt.Print("Does the message look good? (yes/no): ")
+	var response string
+	fmt.Scanln(&response)
+	if strings.ToLower(response) != "yes" {
+		return nil, fmt.Errorf("revert cancelled by user")
+	}
+
+	// Take this out when you're ready to give it a try for real.
+	os.Exit(0)
+
 	// If we don't have a local copy we'll clone it and make sure the user has a fork
 	if repoOpts == nil {
 		// Find a user's fork
@@ -250,32 +288,6 @@ func (c *Client) Revert(prInfo *v1.PullRequest, jira, contextMsg, jobs string, r
 	}
 	err = execWithOutput("git", "push", repoOpts.ForkRemote, fmt.Sprintf("%s:%s", revertBranch, revertBranch))
 	if err != nil {
-		return nil, err
-	}
-
-	// Revert template
-	tmpl, err := template.New("revertTemplate").Parse(revertTemplate)
-	if err != nil {
-		return nil, err
-	}
-
-	// Revert template
-	data := struct {
-		OriginalPR     int
-		OriginalAuthor string
-		JiraIssue      string
-		Context        string
-		Jobs           string
-	}{
-		OriginalAuthor: prInfo.Author,
-		JiraIssue:      jira,
-		Context:        contextMsg,
-		Jobs:           jobs,
-		OriginalPR:     prInfo.Number,
-	}
-
-	var renderedMsg bytes.Buffer
-	if err := tmpl.Execute(&renderedMsg, data); err != nil {
 		return nil, err
 	}
 
